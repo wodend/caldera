@@ -18,11 +18,11 @@ pub type Weights = [f32; STATE_COUNT];
 pub struct Signal<'a> {
     pub state: State,
     pub direction: &'a Direction,
-    pub distance: u32,
+    pub distance: usize,
 }
 
 impl<'a> Signal<'a> {
-    pub fn new(state: State, direction: &'a Direction, distance: u32) -> Self {
+    pub fn new(state: State, direction: &'a Direction, distance: usize) -> Self {
         return Self {
             state: state,
             direction: direction,

@@ -82,39 +82,39 @@ impl<'a> Model<'a> {
 
     fn propogate(&mut self, cell: Cell) {
         let max_distance = 5;
-        let mut stack = vec![cell];
+        let mut stack= vec![(cell,0)];
         let mut visited = HashSet::new();
-        let mut distance = 0;
-        while let Some(current_cell) = stack.pop() {
-            distance += 1;
+        while let Some((current_cell, distance)) = stack.pop() {
             visited.insert(current_cell);
+            let neighbor_distance = distance + 1 as usize;
             debug!("Propagating from {}", self.cell_str(current_cell));
-            match self.observations[current_cell] {
-                Some(state) => {
-                    for Edge { direction, cell } in self.grid.graph[current_cell].iter() {
+            for Edge { direction, cell } in self.grid.graph[current_cell].iter() {
+                match self.observations[current_cell] {
+                    // Propagate to neighbors if cell collapsed
+                    Some(state) => {
                         if !visited.contains(cell) && self.observations[*cell] == None {
                             // TODO: Add error handling for contradiction during update
-                            let signal = Signal::new(state, direction, distance);
+                            let signal = Signal::new(state, direction, neighbor_distance);
                             debug!("Updating {} with {}", self.cell_str(*cell), signal);
                             states::update(&mut self.weights[*cell], &signal);
                             states::normalize(&mut self.weights[*cell]);
                             debug!("Updated to {}", self.cell_str(*cell));
                             let entropy = states::entropy(&self.weights[*cell]);
                             self.entropies[*cell] = entropy;
-                            // Propagate to neighbors if cell collapsed
                             if entropy.is_nan() {
                                 self.observe(*cell);
-                                stack.push(*cell);
+                                stack.push((*cell, 0));
                             }
                         }
-                    }
+                    },
+                    // Propagate up to max_distance
+                    None => {
+                        if neighbor_distance < max_distance {
+                            stack.push((neighbor_distance, *cell))
+                        }
+                    },
                 }
-                None => (),
             }
-            // Propagate up to max_distance
-            // if distance < max_distance {
-            //     stack.push(*cell)
-            // }
         }
     }
 
@@ -206,7 +206,7 @@ impl<'a> fmt::Display for Model<'a> {
 fn main() {
     env_logger::init();
     let mut rng = rand::thread_rng();
-    let x = 10;
+    let x = 40;
     let grid = Grid::new(x, x, x);
     let mut model = Model::new(&mut rng, &grid);
     info!("Running...");
