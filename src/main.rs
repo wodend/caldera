@@ -80,7 +80,7 @@ impl<'a> Model<'a> {
         self.observed_count += 1;
     }
 
-    fn propogate(&mut self, cell: Cell) {
+    fn propagate(&mut self, cell: Cell) {
         let max_distance = 5;
         let mut stack= vec![(cell,0)];
         let mut visited = HashSet::new();
@@ -123,7 +123,7 @@ impl<'a> Model<'a> {
             let min_entropy_cell = self.min_entropy_cell();
             debug!("Observing {}", self.cell_str(min_entropy_cell));
             self.observe(min_entropy_cell);
-            self.propogate(min_entropy_cell);
+            self.propagate(min_entropy_cell);
         }
         self.render();
     }
