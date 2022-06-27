@@ -1,7 +1,7 @@
 mod grid;
 mod states;
 
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 use std::fmt;
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -14,7 +14,7 @@ use rand::rngs::ThreadRng;
 use rand::Rng;
 
 use crate::grid::{Cell, Coordinate, Direction, Edge, Grid};
-use crate::states::{Signal, State, StateNames, Weights};
+use crate::states::{Signal, State, StateNames, Weights, STATE_COUNT};
 
 #[derive(Debug)]
 struct Model<'a> {
@@ -23,15 +23,18 @@ struct Model<'a> {
     weights: Vec<Weights>,
     entropies: Vec<f32>,
     observations: Vec<Option<State>>,
+    update_map: HashMap<(usize, Direction, usize), [f32; 2]>,
     observed_count: usize,
+    max_distance: usize,
 }
 
 impl<'a> Model<'a> {
-    fn new(rng: &'a mut ThreadRng, grid: &'a Grid) -> Self {
+    fn new(rng: &'a mut ThreadRng, grid: &'a Grid, max_distance: usize) -> Self {
         let mut weights = Vec::new();
         let mut entropies = Vec::new();
         let mut observations = Vec::new();
         let mut observed_count = 0;
+        let update_map = states::update_vector_dict(states::STATES, max_distance);
         for cell in 0..grid.cell_count {
             let coordinate = &grid.coordinates[cell];
             let mut initial_weights = states::initial_weights(grid, coordinate);
@@ -54,7 +57,9 @@ impl<'a> Model<'a> {
             weights: weights,
             entropies: entropies,
             observations: observations,
+            update_map: update_map,
             observed_count: observed_count,
+            max_distance: max_distance,
         };
     }
 
@@ -81,8 +86,7 @@ impl<'a> Model<'a> {
     }
 
     fn propagate(&mut self, cell: Cell) {
-        let max_distance = 5;
-        let mut stack= vec![(cell,0)];
+        let mut stack = vec![(cell, 0)];
         let mut visited = HashSet::new();
         while let Some((current_cell, distance)) = stack.pop() {
             visited.insert(current_cell);
@@ -96,7 +100,14 @@ impl<'a> Model<'a> {
                             // TODO: Add error handling for contradiction during update
                             let signal = Signal::new(state, direction, neighbor_distance);
                             debug!("Updating {} with {}", self.cell_str(*cell), signal);
-                            states::update(&mut self.weights[*cell], &signal);
+                            let update_vector = self.update_map[&(signal.state, *signal.direction, neighbor_distance)];
+                            for state in 0..STATE_COUNT {
+                                self.weights[*cell][state] *= update_vector[state];
+                            }
+                            //states::update(&mut self.weights[*cell], &signal);
+                            // tmp debugging
+                            assert!(!self.weights[*cell].iter().any(|&x| x < 0.0));
+                            // tmp debugging
                             states::normalize(&mut self.weights[*cell]);
                             debug!("Updated to {}", self.cell_str(*cell));
                             let entropy = states::entropy(&self.weights[*cell]);
@@ -106,13 +117,13 @@ impl<'a> Model<'a> {
                                 stack.push((*cell, 0));
                             }
                         }
-                    },
+                    }
                     // Propagate up to max_distance
                     None => {
-                        if neighbor_distance < max_distance {
+                        if neighbor_distance < self.max_distance {
                             stack.push((neighbor_distance, *cell))
                         }
-                    },
+                    }
                 }
             }
         }
@@ -172,10 +183,7 @@ impl<'a> Model<'a> {
         };
         return format!(
             "Cell{{id={}, weights={:?}, entropy={}, observation={}}}",
-            cell,
-            self.weights[cell],
-            self.entropies[cell],
-            observation,
+            cell, self.weights[cell], self.entropies[cell], observation,
         );
     }
 }
@@ -206,9 +214,10 @@ impl<'a> fmt::Display for Model<'a> {
 fn main() {
     env_logger::init();
     let mut rng = rand::thread_rng();
-    let x = 40;
+    let x = 20;
     let grid = Grid::new(x, x, x);
-    let mut model = Model::new(&mut rng, &grid);
+    let mut model = Model::new(&mut rng, &grid, 3);
+    info!("{}", model);
     info!("Running...");
     model.wfc();
     info!("Done");
