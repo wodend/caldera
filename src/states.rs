@@ -17,9 +17,6 @@ pub type StateNames = [&'static str; STATE_COUNT];
 pub type Weights = [f32; STATE_COUNT];
 pub const STATES: [State; STATE_COUNT] = [GROUND, SKY];
 
-pub struct States {
-}
-
 pub struct Signal<'a> {
     pub state: State,
     pub direction: &'a Direction,
@@ -120,10 +117,10 @@ pub fn initial_weight_sky(grid: &Grid, coordinate: &Coordinate) -> f32 {
     //     return 0.00001;
     // }
     // return 1.0 - (2.0 / (f32::exp(coordinate.z as f32 / 2.0) + 1.0));
-    //return (coordinate.z as f32 + 1.0) / grid.height as f32;
+    return (coordinate.z as f32 + 1.0) / grid.height as f32;
     //return coordinate.z as f32;
-    let z = grid.height as f32 - coordinate.z as f32;
-    return (2.0 / ((z / (grid.height as f32 * 0.05)).exp() + 1.0001));
+    //let z = grid.height as f32 - coordinate.z as f32;
+    //return (2.0 / ((z / (grid.height as f32 * 0.05)).exp() + 1.0001));
 }
 //pub fn initial_weight_sky(grid: &Grid, coordinate: &Coordinate) -> f32 {
 //    return 1.0 - initial_weight_ground(grid, coordinate);
@@ -131,7 +128,8 @@ pub fn initial_weight_sky(grid: &Grid, coordinate: &Coordinate) -> f32 {
 
 pub fn initial_weight_ground(grid: &Grid, coordinate: &Coordinate) -> f32 {
     //let a = coordinate.z as f32 + 1.0;
-    let a = 1.0;
+    //let a = 1.0;
+    let a = 0.5;
     //let a = (grid.height as f32 - coordinate.z as f32) * 0.2;
     //let a = (1.0 - ((coordinate.z as f32 + 1.0) / grid.height as f32)) * 0.1;
     let x_0 = grid.width as f32 / 2.0;
@@ -141,7 +139,7 @@ pub fn initial_weight_ground(grid: &Grid, coordinate: &Coordinate) -> f32 {
     let x = coordinate.x as f32;
     let y = coordinate.y as f32;
     return (1.0 - initial_weight_sky(grid, coordinate))
-        * (1.0 - gaussian(a, x_0, y_0, s_x, s_y, x, y));
+        * (gaussian(a, x_0, y_0, s_x, s_y, x, y));
     //return gaussian(a, x_0, y_0, s_x, s_y, x, y);
 }
 
@@ -197,4 +195,81 @@ fn update_weight_sky(signal: &Signal) -> f32 {
 
 fn update_weight_edge(signal: &Signal) -> f32 {
     return 1.0;
+}
+
+pub fn init_ground(grid: &Grid, coordinate: &Coordinate) -> f32 {
+    if coordinate.z < 5 {
+        return 1.0;
+    }
+    return 0.0;
+}
+
+pub fn init_sky(grid: &Grid, coordinate: &Coordinate) -> f32 {
+    return 1.0 - init_ground(grid, coordinate);
+}
+
+pub fn update_ground(signal: &Signal) -> f32 {
+    return 1.0;
+}
+
+pub fn update_sky(signal: &Signal) -> f32 {
+    return 0.0;
+}
+
+pub struct Statev3<'a> {
+    name: &'a str,
+    init: fn(grid: &'a Grid, coordinate: &'a Coordinate) -> f32,
+    update: fn(signal: &'a Signal<'a>) -> f32,
+}
+
+pub struct Weightsv2<'a> {
+    states: [Statev3<'a>; STATE_COUNT],
+}
+impl<'a> Weightsv2<'a> {
+    pub fn new() -> Self {
+        let states = [
+            Statev3 {name: "ground", init: init_ground, update: update_ground},
+            Statev3 {name: "sky", init: init_sky, update: update_sky},
+        ];
+        return Self {
+            states: states,
+        };
+    }
+
+    pub fn update(&self, signal: &'a Signal) -> [f32; STATE_COUNT] {
+        let mut init: [f32; STATE_COUNT] = [0.0; STATE_COUNT];
+        for i in 0..STATE_COUNT {
+            init[i] = (self.states[i].update)(signal) as f32
+        }
+        return init;
+    }
+
+    pub fn init(&self, grid: &'a Grid, coordinate: &'a Coordinate) -> [f32; STATE_COUNT] {
+        let mut init: [f32; STATE_COUNT] = [0.0; STATE_COUNT];
+        for i in 0..STATE_COUNT {
+            init[i] = (self.states[i].init)(grid, coordinate) as f32
+        }
+        return init;
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    // Note this useful idiom: importing names from outer (for mod tests) scope.
+    use super::*;
+
+    #[test]
+    fn states_new() {
+        let weights = Weightsv2::new();
+        let signal = Signal {state: 0, direction: &Direction::Left, distance: 1};
+        //println!("{:?}", weights.init_weights2(&signal));
+        println!("{:?}", weights.update(&signal));
+        //let states = [
+        //    Statev2 {name: "ground", init: init_ground, update: update_ground},
+        //    Statev2 {name: "sky", init: init_sky, update: update_sky},
+        //];
+        //println!("{:?}", update_vector(&states, &Signal { state: 1, direction: &Direction::Back, distance: 0 }));
+        assert!(false);
+    }
 }

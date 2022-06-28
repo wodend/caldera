@@ -14,7 +14,7 @@ use rand::rngs::ThreadRng;
 use rand::Rng;
 
 use crate::grid::{Cell, Coordinate, Direction, Edge, Grid};
-use crate::states::{Signal, State, StateNames, Weights, STATE_COUNT};
+use crate::states::{Signal, State, StateNames, Weights, STATE_COUNT, Weightsv2};
 
 #[derive(Debug)]
 struct Model<'a> {
@@ -30,14 +30,16 @@ struct Model<'a> {
 
 impl<'a> Model<'a> {
     fn new(rng: &'a mut ThreadRng, grid: &'a Grid, max_distance: usize) -> Self {
-        let mut weights = Vec::new();
-        let mut entropies = Vec::new();
-        let mut observations = Vec::new();
+        let mut weights = Vec::with_capacity(grid.cell_count);
+        let mut entropies = Vec::with_capacity(grid.cell_count);
+        let mut observations = Vec::with_capacity(grid.cell_count);
         let mut observed_count = 0;
         let update_map = states::update_vector_dict(states::STATES, max_distance);
+        let weight_vectors = Weightsv2::new();
         for cell in 0..grid.cell_count {
             let coordinate = &grid.coordinates[cell];
-            let mut initial_weights = states::initial_weights(grid, coordinate);
+            let mut initial_weights = weight_vectors.init(grid, coordinate);
+            //let mut initial_weights = states::initial_weights(grid, coordinate);
             states::normalize(&mut initial_weights);
             let entropy = states::entropy(&initial_weights);
             if entropy.is_nan() {
@@ -97,10 +99,12 @@ impl<'a> Model<'a> {
                     // Propagate to neighbors if cell collapsed
                     Some(state) => {
                         if !visited.contains(cell) && self.observations[*cell] == None {
+                            let weight_vectors = Weightsv2::new();
                             // TODO: Add error handling for contradiction during update
                             let signal = Signal::new(state, direction, neighbor_distance);
                             debug!("Updating {} with {}", self.cell_str(*cell), signal);
-                            let update_vector = self.update_map[&(signal.state, *signal.direction, neighbor_distance)];
+                            //let update_vector = self.update_map[&(signal.state, *signal.direction, neighbor_distance)];
+                            let update_vector = weight_vectors.update(&signal);
                             for state in 0..STATE_COUNT {
                                 self.weights[*cell][state] *= update_vector[state];
                             }
