@@ -1,9 +1,12 @@
 mod grid;
 mod states;
+mod math;
+mod state;
 
 use std::collections::{HashSet, HashMap};
 use std::fmt;
 use std::fs::File;
+use std::hash::Hash;
 use std::io::{BufWriter, Write};
 use std::path::Path;
 
@@ -20,6 +23,7 @@ use crate::states::{Signal, State, StateNames, Weights, STATE_COUNT, Weightsv2};
 struct Model<'a> {
     rng: &'a mut ThreadRng,
     grid: &'a Grid,
+    weightsv2: &'a Weightsv2<'a>,
     weights: Vec<Weights>,
     entropies: Vec<f32>,
     observations: Vec<Option<State>>,
@@ -29,16 +33,16 @@ struct Model<'a> {
 }
 
 impl<'a> Model<'a> {
-    fn new(rng: &'a mut ThreadRng, grid: &'a Grid, max_distance: usize) -> Self {
+    fn new(rng: &'a mut ThreadRng, grid: &'a Grid, max_distance: usize, weightsv2: &'a Weightsv2<'a>) -> Self {
         let mut weights = Vec::with_capacity(grid.cell_count);
         let mut entropies = Vec::with_capacity(grid.cell_count);
         let mut observations = Vec::with_capacity(grid.cell_count);
         let mut observed_count = 0;
-        let update_map = states::update_vector_dict(states::STATES, max_distance);
-        let weight_vectors = Weightsv2::new();
+        //let update_map = states::update_vector_dict(states::STATES, max_distance);
+        let update_map = HashMap::new();
         for cell in 0..grid.cell_count {
             let coordinate = &grid.coordinates[cell];
-            let mut initial_weights = weight_vectors.init(grid, coordinate);
+            let mut initial_weights = weightsv2.init(grid, coordinate);
             //let mut initial_weights = states::initial_weights(grid, coordinate);
             states::normalize(&mut initial_weights);
             let entropy = states::entropy(&initial_weights);
@@ -56,6 +60,7 @@ impl<'a> Model<'a> {
         return Self {
             rng: rng,
             grid: grid,
+            weightsv2: weightsv2,
             weights: weights,
             entropies: entropies,
             observations: observations,
@@ -99,12 +104,13 @@ impl<'a> Model<'a> {
                     // Propagate to neighbors if cell collapsed
                     Some(state) => {
                         if !visited.contains(cell) && self.observations[*cell] == None {
-                            let weight_vectors = Weightsv2::new();
+                            //let weight_vectors = Weightsv2::new();
+                            let weightsv2 = Weightsv2::new();
                             // TODO: Add error handling for contradiction during update
                             let signal = Signal::new(state, direction, neighbor_distance);
                             debug!("Updating {} with {}", self.cell_str(*cell), signal);
                             //let update_vector = self.update_map[&(signal.state, *signal.direction, neighbor_distance)];
-                            let update_vector = weight_vectors.update(&signal);
+                            let update_vector = weightsv2.update(&signal);
                             for state in 0..STATE_COUNT {
                                 self.weights[*cell][state] *= update_vector[state];
                             }
@@ -220,7 +226,8 @@ fn main() {
     let mut rng = rand::thread_rng();
     let x = 20;
     let grid = Grid::new(x, x, x);
-    let mut model = Model::new(&mut rng, &grid, 3);
+    let weightsv2 = Weightsv2::new();
+    let mut model = Model::new(&mut rng, &grid, 3, &weightsv2);
     info!("{}", model);
     info!("Running...");
     model.wfc();
