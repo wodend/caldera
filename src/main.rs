@@ -17,33 +17,33 @@ use rand::rngs::ThreadRng;
 use rand::Rng;
 
 use crate::grid::{Cell, Coordinate, Direction, Edge, Grid};
-use crate::states::{Signal, State, StateNames, Weights, STATE_COUNT, Weightsv2};
+use crate::states::{Signal, State, StateNames, Weights, STATE_COUNT, States};
 
 #[derive(Debug)]
 struct Model<'a> {
     rng: &'a mut ThreadRng,
     grid: &'a Grid,
-    weightsv2: &'a Weightsv2<'a>,
+    states: &'a States<'a>,
     weights: Vec<Weights>,
     entropies: Vec<f32>,
-    observations: Vec<Option<State>>,
+    observations: Vec<Option<usize>>,
     update_map: HashMap<Signal, [f32; 2]>,
     observed_count: usize,
     max_distance: usize,
 }
 
 impl<'a> Model<'a> {
-    fn new(rng: &'a mut ThreadRng, grid: &'a Grid, max_distance: usize, weightsv2: &'a Weightsv2<'a>) -> Self {
+    fn new(rng: &'a mut ThreadRng, grid: &'a Grid, max_distance: usize, states: &'a States<'a>) -> Self {
         let mut weights = Vec::with_capacity(grid.cell_count);
         let mut entropies = Vec::with_capacity(grid.cell_count);
         let mut observations = Vec::with_capacity(grid.cell_count);
         let mut observed_count = 0;
-        let update_map = weightsv2.update_map(&grid.directions, max_distance);
+        let update_map = states.update_map(&grid.directions, max_distance);
         // get update map from weightsv2
         //let update_map = HashMap::new();
         for cell in 0..grid.cell_count {
             let coordinate = &grid.coordinates[cell];
-            let mut initial_weights = weightsv2.init(grid, coordinate);
+            let mut initial_weights = states.init(grid, coordinate);
             //let mut initial_weights = states::initial_weights(grid, coordinate);
             states::normalize(&mut initial_weights);
             let entropy = states::entropy(&initial_weights);
@@ -61,7 +61,7 @@ impl<'a> Model<'a> {
         return Self {
             rng: rng,
             grid: grid,
-            weightsv2: weightsv2,
+            states: states,
             weights: weights,
             entropies: entropies,
             observations: observations,
@@ -169,7 +169,7 @@ impl<'a> Model<'a> {
         );
         writer.write(header.as_bytes()).unwrap();
         //let state_names = states::names();
-        let state_names = self.weightsv2.names();
+        let state_names = self.states.names();
         for cell in 0..self.grid.cell_count {
             let coordinate = &self.grid.coordinates[cell];
             let x = coordinate.x * states::SIZE;
@@ -190,7 +190,7 @@ impl<'a> Model<'a> {
 
     fn cell_str(&self, cell: usize) -> String {
         let observation = match self.observations[cell] {
-            Some(state) => states::names()[state],
+            Some(state) => self.states.names()[state],
             None => "None",
         };
         return format!(
@@ -204,7 +204,7 @@ impl<'a> fmt::Display for Model<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "Model")?;
         for cell in 0..self.grid.cell_count {
-            let names = states::names();
+            let names = self.states.names();
             let observation = match self.observations[cell] {
                 Some(state) => names[state],
                 None => "None",
@@ -228,8 +228,8 @@ fn main() {
     let mut rng = rand::thread_rng();
     let x = 20;
     let grid = Grid::new(x, x, x);
-    let weightsv2 = Weightsv2::new();
-    let mut model = Model::new(&mut rng, &grid, 3, &weightsv2);
+    let states = States::new();
+    let mut model = Model::new(&mut rng, &grid, 3, &states);
     info!("{}", model);
     info!("Running...");
     model.wfc();

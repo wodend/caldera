@@ -14,22 +14,20 @@ const EDGE: usize = 2;
 
 //pub const SIZE: usize = 64;
 pub const SIZE: usize = 3;
-pub type State = usize;
 pub type StateNames = [&'static str; STATE_COUNT];
 pub type Weights = [f32; STATE_COUNT];
-pub const STATES: [State; STATE_COUNT] = [GROUND, SKY];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Signal {
-    pub state: State,
+    pub state_id: usize,
     pub direction: Direction,
     pub distance: usize,
 }
 
 impl Signal {
-    pub fn new(state: State, direction: Direction, distance: usize) -> Self {
+    pub fn new(state_id: usize, direction: Direction, distance: usize) -> Self {
         return Self {
-            state: state,
+            state_id: state_id,
             direction: direction,
             distance: distance,
         };
@@ -41,7 +39,7 @@ impl fmt::Display for Signal {
         write!(
             f,
             "Signal{{state={}, direction={:?}, distance={}}}",
-            self.state, self.direction, self.distance,
+            self.state_id, self.direction, self.distance,
         )?;
         return Ok(());
     }
@@ -58,28 +56,22 @@ pub fn normalize(weights: &mut Weights) {
     }
 }
 
-pub fn names() -> StateNames {
-    //return ["ground", "sky", "edge"];
-    return ["ground", "sky"];
-}
-
-
 #[derive(Debug)]
-pub struct Statev3<'a> {
+pub struct State<'a> {
     name: &'a str,
     init: fn(grid: &'a Grid, coordinate: &'a Coordinate) -> f32,
     update: fn(signal: Signal) -> f32,
 }
 
 #[derive(Debug)]
-pub struct Weightsv2<'a> {
-    states: [Statev3<'a>; STATE_COUNT],
+pub struct States<'a> {
+    states: [State<'a>; STATE_COUNT],
 }
-impl<'a> Weightsv2<'a> {
+impl<'a> States<'a> {
     pub fn new() -> Self {
         let states = [
-            Statev3 {name: "ground", init: ground::init, update: ground::update},
-            Statev3 {name: "sky", init: sky::init, update: sky::update},
+            State {name: "ground", init: ground::init, update: ground::update},
+            State {name: "sky", init: sky::init, update: sky::update},
         ];
         return Self {
             states: states,
@@ -109,10 +101,10 @@ impl<'a> Weightsv2<'a> {
     ) -> HashMap<Signal, [f32; STATE_COUNT]> {
         let mut update_map = HashMap::new();
     
-        for state in 0..self.states.len() {
+        for state_id in 0..self.states.len() {
             for distance in 0..max_distance {
                 for direction in directions.iter() {
-                    let signal = Signal::new(state, *direction, distance);
+                    let signal = Signal::new(state_id, *direction, distance);
                     update_map.insert(
                         signal,
                         self.update(signal),
