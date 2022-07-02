@@ -1,3 +1,16 @@
+pub fn entropy(weights: &Vec<f32>) -> f32 {
+    return weights.iter().fold(0.0, |acc, p| acc + (-p) * p.log2());
+}
+
+pub fn normalize(weights: &mut Vec<f32>) {
+    let sum: f32 = weights.iter().sum();
+    weights.iter_mut().for_each(|w| *w /= sum);
+}
+
+pub fn hadamard_product(a: &mut Vec<f32>, b: &Vec<f32>) {
+    a.iter_mut().zip(b).for_each(|(a_i, b_i)| *a_i *= *b_i);
+}
+
 pub fn fermi_dirac(a: f32, u: f32, kt: f32, x: f32) -> f32 {
     return a / (f32::exp((x - u) / kt) + 1.0);
 }

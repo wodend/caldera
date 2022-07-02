@@ -1,9 +1,9 @@
 mod grid;
-mod states;
 mod math;
 mod state;
+mod states;
 
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::fs::File;
 use std::hash::Hash;
@@ -17,36 +17,54 @@ use rand::rngs::ThreadRng;
 use rand::Rng;
 
 use crate::grid::{Cell, Coordinate, Direction, Edge, Grid};
-use crate::states::{Signal, State, StateNames, Weights, STATE_COUNT, States};
+use crate::states::States;
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Signal {
+    pub state_id: usize,
+    pub direction: Direction,
+    pub distance: usize,
+}
+
+impl Signal {
+    pub fn new(state_id: usize, direction: Direction, distance: usize) -> Self {
+        return Self {
+            state_id: state_id,
+            direction: direction,
+            distance: distance,
+        };
+    }
+}
+
 struct Model<'a> {
     rng: &'a mut ThreadRng,
     grid: &'a Grid,
     states: &'a States<'a>,
-    weights: Vec<Weights>,
+    weights: Vec<Vec<f32>>,
     entropies: Vec<f32>,
     observations: Vec<Option<usize>>,
-    update_map: HashMap<Signal, [f32; 2]>,
+    update_map: HashMap<Signal, Vec<f32>>,
     observed_count: usize,
     max_distance: usize,
 }
 
 impl<'a> Model<'a> {
-    fn new(rng: &'a mut ThreadRng, grid: &'a Grid, max_distance: usize, states: &'a States<'a>) -> Self {
+    fn new(
+        rng: &'a mut ThreadRng,
+        grid: &'a Grid,
+        max_distance: usize,
+        states: &'a States<'a>,
+    ) -> Self {
         let mut weights = Vec::with_capacity(grid.cell_count);
         let mut entropies = Vec::with_capacity(grid.cell_count);
         let mut observations = Vec::with_capacity(grid.cell_count);
         let mut observed_count = 0;
         let update_map = states.update_map(&grid.directions, max_distance);
-        // get update map from weightsv2
-        //let update_map = HashMap::new();
         for cell in 0..grid.cell_count {
             let coordinate = &grid.coordinates[cell];
             let mut initial_weights = states.init(grid, coordinate);
-            //let mut initial_weights = states::initial_weights(grid, coordinate);
-            states::normalize(&mut initial_weights);
-            let entropy = states::entropy(&initial_weights);
+            math::normalize(&mut initial_weights);
+            let entropy = math::entropy(&initial_weights);
             if entropy.is_nan() {
                 let observed_state = initial_weights.iter().position(|&p| p == 1.0);
                 observations.push(observed_state);
@@ -87,7 +105,7 @@ impl<'a> Model<'a> {
     }
 
     fn observe(&mut self, cell: Cell) {
-        let dist = WeightedIndex::new(self.weights[cell]).unwrap(); // TODO: Add error handling
+        let dist = WeightedIndex::new(&self.weights[cell]).unwrap(); // TODO: Add error handling
         let observed_state = dist.sample(self.rng);
         self.observations[cell] = Some(observed_state);
         self.observed_count += 1;
@@ -99,29 +117,16 @@ impl<'a> Model<'a> {
         while let Some((current_cell, distance)) = stack.pop() {
             visited.insert(current_cell);
             let neighbor_distance = distance + 1 as usize;
-            debug!("Propagating from {}", self.cell_str(current_cell));
             for Edge { direction, cell } in self.grid.graph[current_cell].iter() {
                 match self.observations[current_cell] {
                     // Propagate to neighbors if cell collapsed
                     Some(state) => {
                         if !visited.contains(cell) && self.observations[*cell] == None {
-                            //let weight_vectors = Weightsv2::new();
-                            //let weightsv2 = Weightsv2::new();
-                            // TODO: Add error handling for contradiction during update
                             let signal = Signal::new(state, *direction, neighbor_distance);
-                            debug!("Updating {} with {}", self.cell_str(*cell), signal);
-                            let update_vector = self.update_map[&signal];
-                            //let update_vector = weightsv2.update(signal);
-                            for state in 0..STATE_COUNT {
-                                self.weights[*cell][state] *= update_vector[state];
-                            }
-                            //states::update(&mut self.weights[*cell], &signal);
-                            // tmp debugging
-                            assert!(!self.weights[*cell].iter().any(|&x| x < 0.0));
-                            // tmp debugging
-                            states::normalize(&mut self.weights[*cell]);
-                            debug!("Updated to {}", self.cell_str(*cell));
-                            let entropy = states::entropy(&self.weights[*cell]);
+                            let update_vector = &self.update_map[&signal];
+                            math::hadamard_product(&mut self.weights[*cell], update_vector);
+                            math::normalize(&mut self.weights[*cell]);
+                            let entropy = math::entropy(&self.weights[*cell]);
                             self.entropies[*cell] = entropy;
                             if entropy.is_nan() {
                                 self.observe(*cell);
@@ -200,29 +205,6 @@ impl<'a> Model<'a> {
     }
 }
 
-impl<'a> fmt::Display for Model<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "Model")?;
-        for cell in 0..self.grid.cell_count {
-            let names = self.states.names();
-            let observation = match self.observations[cell] {
-                Some(state) => names[state],
-                None => "None",
-            };
-            writeln!(
-                f,
-                "Cell {} {:?} Weights {:?} Entropy {} Observation {}",
-                cell,
-                self.grid.coordinates[cell],
-                self.weights[cell],
-                self.entropies[cell],
-                observation,
-            )?;
-        }
-        return Ok(());
-    }
-}
-
 fn main() {
     env_logger::init();
     let mut rng = rand::thread_rng();
@@ -230,8 +212,6 @@ fn main() {
     let grid = Grid::new(x, x, x);
     let states = States::new();
     let mut model = Model::new(&mut rng, &grid, 3, &states);
-    info!("{}", model);
-    info!("Running...");
     model.wfc();
     info!("Done");
 }

@@ -1,6 +1,6 @@
-use crate::math::{fermi_dirac, gaussian};
 use crate::grid::{Coordinate, Direction, Grid};
-use crate::states::Signal;
+use crate::math::{fermi_dirac, gaussian};
+use crate::Signal;
 
 pub mod ground {
     use super::*;
@@ -13,8 +13,7 @@ pub mod ground {
         let s_y = s_x;
         let x = coordinate.x as f32;
         let y = coordinate.y as f32;
-        return (1.0 - sky::init(grid, coordinate))
-            * (gaussian(a, x_0, y_0, s_x, s_y, x, y));
+        return (1.0 - sky::init(grid, coordinate)) * (gaussian(a, x_0, y_0, s_x, s_y, x, y));
     }
 
     pub fn update(signal: Signal) -> f32 {
