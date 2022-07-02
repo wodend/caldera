@@ -19,14 +19,15 @@ pub type StateNames = [&'static str; STATE_COUNT];
 pub type Weights = [f32; STATE_COUNT];
 pub const STATES: [State; STATE_COUNT] = [GROUND, SKY];
 
-pub struct Signal<'a> {
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Signal {
     pub state: State,
-    pub direction: &'a Direction,
+    pub direction: Direction,
     pub distance: usize,
 }
 
-impl<'a> Signal<'a> {
-    pub fn new(state: State, direction: &'a Direction, distance: usize) -> Self {
+impl Signal {
+    pub fn new(state: State, direction: Direction, distance: usize) -> Self {
         return Self {
             state: state,
             direction: direction,
@@ -35,7 +36,7 @@ impl<'a> Signal<'a> {
     }
 }
 
-impl<'a> fmt::Display for Signal<'a> {
+impl fmt::Display for Signal {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -62,55 +63,12 @@ pub fn names() -> StateNames {
     return ["ground", "sky"];
 }
 
-// pub fn update_vector_dict(
-//     states: [usize; 2],
-//     max_distance: usize,
-// ) -> HashMap<(usize, Direction, usize), [f32; 2]> {
-//     let directions: [Direction; 6] = [
-//         Direction::Left,
-//         Direction::Right,
-//         Direction::Front,
-//         Direction::Back,
-//         Direction::Down,
-//         Direction::Up,
-//     ];
-// 
-//     let mut dictionary = HashMap::new();
-// 
-//     for state in states.iter() {
-//         for distance in 0..max_distance {
-//             for direction in directions.iter() {
-//                 dictionary.insert(
-//                     //Signal::new(*state, direction, distance),
-//                     (*state, *direction, distance),
-//                     [
-//                         update_weight_ground(&Signal::new(*state, direction,distance)),
-//                         update_weight_sky(&Signal::new(*state, direction,distance)),
-//                     ],
-//                 );
-//             }
-//         }
-//     }
-//     return dictionary;
-// }
-
-// pub fn init_ground(grid: &Grid, coordinate: &Coordinate) -> f32 {
-//     let a = 1.0;
-//     let x_0 = grid.width as f32 / 2.0;
-//     let y_0 = grid.depth as f32 / 2.0;
-//     let s_x = grid.width as f32 * 0.2;
-//     let s_y = s_x;
-//     let x = coordinate.x as f32;
-//     let y = coordinate.y as f32;
-//     return (1.0 - init_sky(grid, coordinate))
-//         * (gaussian(a, x_0, y_0, s_x, s_y, x, y));
-// }
 
 #[derive(Debug)]
 pub struct Statev3<'a> {
     name: &'a str,
     init: fn(grid: &'a Grid, coordinate: &'a Coordinate) -> f32,
-    update: fn(signal: &'a Signal<'a>) -> f32,
+    update: fn(signal: Signal) -> f32,
 }
 
 #[derive(Debug)]
@@ -128,12 +86,12 @@ impl<'a> Weightsv2<'a> {
         };
     }
 
-    pub fn update(&self, signal: &'a Signal) -> [f32; STATE_COUNT] {
-        let mut init: [f32; STATE_COUNT] = [0.0; STATE_COUNT];
+    pub fn update(&self, signal: Signal) -> [f32; STATE_COUNT] {
+        let mut update: [f32; STATE_COUNT] = [0.0; STATE_COUNT];
         for i in 0..STATE_COUNT {
-            init[i] = (self.states[i].update)(signal) as f32
+            update[i] = (self.states[i].update)(signal) as f32
         }
-        return init;
+        return update;
     }
 
     pub fn init(&self, grid: &'a Grid, coordinate: &'a Coordinate) -> [f32; STATE_COUNT] {
@@ -142,5 +100,34 @@ impl<'a> Weightsv2<'a> {
             init[i] = (self.states[i].init)(grid, coordinate) as f32
         }
         return init;
+    }
+
+    pub fn update_map(
+        &self,
+        directions: &Vec<Direction>,
+        max_distance: usize,
+    ) -> HashMap<Signal, [f32; STATE_COUNT]> {
+        let mut update_map = HashMap::new();
+    
+        for state in 0..self.states.len() {
+            for distance in 0..max_distance {
+                for direction in directions.iter() {
+                    let signal = Signal::new(state, *direction, distance);
+                    update_map.insert(
+                        signal,
+                        self.update(signal),
+                    );
+                }
+            }
+        }
+        return update_map;
+    }
+
+    pub fn names(&self) -> [&str; STATE_COUNT] {
+        let mut names: [&str; STATE_COUNT] = [""; STATE_COUNT];
+        for i in 0..STATE_COUNT {
+            names[i] = self.states[i].name
+        }
+        return names;
     }
 }

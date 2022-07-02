@@ -46,6 +46,7 @@ pub struct Grid {
     pub height: usize,
     pub coordinates: Vec<Coordinate>,
     pub graph: Vec<Vec<Edge>>,
+    pub directions: Vec<Direction>,
 }
 
 fn cell(coordinate: Coordinate, width: usize, depth: usize) -> Cell {
@@ -57,6 +58,14 @@ impl Grid {
         let cell_count = (width * depth * height) as usize;
         let mut coordinates = Vec::new();
         let mut graph = Vec::new();
+        let directions = vec![
+            Direction::Left,
+            Direction::Right,
+            Direction::Front,
+            Direction::Back,
+            Direction::Down,
+            Direction::Up,
+        ];
         for z in 0..height {
             for y in 0..depth {
                 for x in 0..width {
@@ -97,6 +106,7 @@ impl Grid {
             height: height,
             coordinates: coordinates,
             graph: graph,
+            directions: directions,
         };
     }
 }

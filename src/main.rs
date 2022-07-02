@@ -27,7 +27,7 @@ struct Model<'a> {
     weights: Vec<Weights>,
     entropies: Vec<f32>,
     observations: Vec<Option<State>>,
-    update_map: HashMap<(usize, Direction, usize), [f32; 2]>,
+    update_map: HashMap<Signal, [f32; 2]>,
     observed_count: usize,
     max_distance: usize,
 }
@@ -38,8 +38,9 @@ impl<'a> Model<'a> {
         let mut entropies = Vec::with_capacity(grid.cell_count);
         let mut observations = Vec::with_capacity(grid.cell_count);
         let mut observed_count = 0;
-        //let update_map = states::update_vector_dict(states::STATES, max_distance);
-        let update_map = HashMap::new();
+        let update_map = weightsv2.update_map(&grid.directions, max_distance);
+        // get update map from weightsv2
+        //let update_map = HashMap::new();
         for cell in 0..grid.cell_count {
             let coordinate = &grid.coordinates[cell];
             let mut initial_weights = weightsv2.init(grid, coordinate);
@@ -105,12 +106,12 @@ impl<'a> Model<'a> {
                     Some(state) => {
                         if !visited.contains(cell) && self.observations[*cell] == None {
                             //let weight_vectors = Weightsv2::new();
-                            let weightsv2 = Weightsv2::new();
+                            //let weightsv2 = Weightsv2::new();
                             // TODO: Add error handling for contradiction during update
-                            let signal = Signal::new(state, direction, neighbor_distance);
+                            let signal = Signal::new(state, *direction, neighbor_distance);
                             debug!("Updating {} with {}", self.cell_str(*cell), signal);
-                            //let update_vector = self.update_map[&(signal.state, *signal.direction, neighbor_distance)];
-                            let update_vector = weightsv2.update(&signal);
+                            let update_vector = self.update_map[&signal];
+                            //let update_vector = weightsv2.update(signal);
                             for state in 0..STATE_COUNT {
                                 self.weights[*cell][state] *= update_vector[state];
                             }
@@ -167,7 +168,8 @@ impl<'a> Model<'a> {
             mv_import_size = mv_import_size
         );
         writer.write(header.as_bytes()).unwrap();
-        let state_names = states::names();
+        //let state_names = states::names();
+        let state_names = self.weightsv2.names();
         for cell in 0..self.grid.cell_count {
             let coordinate = &self.grid.coordinates[cell];
             let x = coordinate.x * states::SIZE;

@@ -9,7 +9,7 @@ pub mod ground {
         let a = 1.0;
         let x_0 = grid.width as f32 / 2.0;
         let y_0 = grid.depth as f32 / 2.0;
-        let s_x = grid.width as f32 * 0.2;
+        let s_x = grid.width as f32 * 0.9;
         let s_y = s_x;
         let x = coordinate.x as f32;
         let y = coordinate.y as f32;
@@ -17,7 +17,7 @@ pub mod ground {
             * (gaussian(a, x_0, y_0, s_x, s_y, x, y));
     }
 
-    pub fn update(signal: &Signal) -> f32 {
+    pub fn update(signal: Signal) -> f32 {
         return 1.0;
     }
 }
@@ -33,7 +33,7 @@ pub mod sky {
         return fermi_dirac(a, u, kt, x);
     }
 
-    pub fn update(signal: &Signal) -> f32 {
+    pub fn update(signal: Signal) -> f32 {
         return 1.0;
     }
 }
