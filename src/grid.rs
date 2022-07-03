@@ -49,8 +49,8 @@ pub struct Grid {
     pub directions: Vec<Direction>,
 }
 
-fn cell(coordinate: Coordinate, width: usize, depth: usize) -> Cell {
-    return (coordinate.x + (coordinate.y * width) + (coordinate.z * width * depth)) as Cell;
+fn cell(coordinate: Coordinate, width: usize, depth: usize) -> usize {
+    return coordinate.x + (coordinate.y * width) + (coordinate.z * width * depth);
 }
 
 impl Grid {
