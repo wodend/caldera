@@ -1,38 +1,41 @@
-use crate::grid::{Coordinate, Direction, Grid};
-use crate::math::{fermi_dirac, gaussian};
-use crate::Signal;
+use crate::space::{Direction, Point, Size};
 
-pub mod ground {
-    use super::*;
+type InitialProbabilityFn = fn(size: Size, point: Point) -> f32;
+type UpdateProbabilityFn = fn(signal: Signal) -> f32;
 
-    pub fn init(grid: &Grid, coordinate: &Coordinate) -> f32 {
-        let a = 1.0;
-        let x_0 = grid.width as f32 / 2.0;
-        let y_0 = grid.depth as f32 / 2.0;
-        let s_x = grid.width as f32 * 0.9;
-        let s_y = s_x;
-        let x = coordinate.x as f32;
-        let y = coordinate.y as f32;
-        return (1.0 - sky::init(grid, coordinate)) * (gaussian(a, x_0, y_0, s_x, s_y, x, y));
-    }
+#[derive(Clone, Copy)]
+pub struct Signal {
+    pub state_name: &'static str,
+    pub direction: Direction,
+    pub distance: usize,
+}
 
-    pub fn update(signal: Signal) -> f32 {
-        return 1.0;
+impl Signal {
+    pub fn new(state_name: &'static str, direction: Direction, distance: usize) -> Signal {
+        Signal {
+            state_name: state_name,
+            direction: direction,
+            distance: distance,
+        }
     }
 }
 
-pub mod sky {
-    use super::*;
+pub struct State {
+    pub name: &'static str,
+    pub initial_probability: InitialProbabilityFn,
+    pub update_probability: UpdateProbabilityFn,
+}
 
-    pub fn init(grid: &Grid, coordinate: &Coordinate) -> f32 {
-        let a = 2.0;
-        let u = 0.0;
-        let kt = grid.height as f32 * 0.5;
-        let x = grid.height as f32 - coordinate.z as f32;
-        return fermi_dirac(a, u, kt, x);
-    }
-
-    pub fn update(signal: Signal) -> f32 {
-        return 1.0;
+impl State {
+    pub fn new(
+        name: &'static str,
+        initial_probability: InitialProbabilityFn,
+        update_probability: UpdateProbabilityFn,
+    ) -> State {
+        State {
+            name: name,
+            initial_probability: initial_probability,
+            update_probability: update_probability,
+        }
     }
 }
